@@ -158,6 +158,157 @@ LPCSTR fs_minimap_fog =
 "    o_color = vec4(v_color.rgb, alpha);\n"
 "}\n";
 
+static LPCSTR model_vs =
+"#version 140\n"
+"in vec3 i_position;\n"
+"in vec4 i_color;\n"
+"in vec2 i_texcoord;\n"
+"in vec3 i_normal;\n"
+"in vec4 i_skin1;\n"
+"in vec4 i_boneWeight1;\n"
+"out vec4 v_color;\n"
+#ifdef USE_SHADOWMAPS
+"out vec4 v_shadow;\n"
+#endif
+"out vec2 v_texcoord;\n"
+"out vec2 v_texcoord2;\n"
+"out vec3 v_lighting;\n"
+"uniform mat4 uBones[128];\n"
+"uniform mat4 uViewProjectionMatrix;\n"
+"uniform mat4 uModelMatrix;\n"
+"uniform mat4 uLightMatrix;\n"
+"uniform mat3 uNormalMatrix;\n"
+"uniform mat4 uTextureMatrix;\n"
+"uniform vec3 uLightDir;\n"
+"uniform vec3 uLightColor;\n"
+"uniform vec3 uLightAmbient;\n"
+"uniform int uLightCount;\n"
+"uniform mat4 uLights[8];\n"
+"const int MODEL_LIGHT_OMNI = 0;\n"
+"const int MODEL_LIGHT_DIRECT = 1;\n"
+"const int MODEL_LIGHT_AMBIENT = 2;\n"
+"vec3 vertex_lighting(vec3 normal, vec3 worldPos) {\n"
+"    vec3 n = normalize(normal);\n"
+"    if (uLightCount == 0)\n"
+"        return uLightAmbient + uLightColor * max(dot(n, normalize(uLightDir)), 0.0);\n"
+"    vec3 lighting = uLightAmbient;\n"
+"    for (int i = 0; i < 8; ++i) {\n"
+"        if (i >= uLightCount) break;\n"
+"        vec4 positionType = uLights[i][0];\n"
+"        vec4 direction = uLights[i][1];\n"
+"        vec4 colorIntensity = uLights[i][2];\n"
+"        vec4 ambientIntensity = uLights[i][3];\n"
+"        int type = int(positionType.w + 0.5);\n"
+"        vec3 color = colorIntensity.rgb * colorIntensity.a;\n"
+"        vec3 ambient = ambientIntensity.rgb * ambientIntensity.a;\n"
+"        if (type == MODEL_LIGHT_AMBIENT) {\n"
+"            lighting += color + ambient;\n"
+"        } else if (type == MODEL_LIGHT_DIRECT) {\n"
+"            vec3 l = normalize(-direction.xyz);\n"
+"            lighting += clamp(color * max(dot(n, l), 0.0), vec3(0.0), vec3(1.0)) + ambient;\n"
+"        } else {\n"
+"            vec3 delta = positionType.xyz - worldPos;\n"
+"            vec3 l = normalize(delta);\n"
+"            float dist = length(delta) / 64.0 + 1.0;\n"
+"            float atten = 1.0 / (dist * dist);\n"
+"            lighting += clamp(color * atten * max(dot(n, l), 0.0), vec3(0.0), vec3(1.0));\n"
+"            lighting += ambient * atten;\n"
+"        }\n"
+"    }\n"
+"    return min(lighting, vec3(1.0));\n"
+"}\n"
+"void main() {\n"
+"    vec4 pos4 = vec4(i_position, 1.0);\n"
+"    vec4 norm4 = vec4(i_normal, 0.0);\n"
+"    vec4 position = vec4(0.0);\n"
+"    vec4 normal = vec4(0.0);\n"
+"    for (int i = 0; i < 4; ++i) {\n"
+"        position += uBones[int(i_skin1[i])] * pos4 * i_boneWeight1[i];\n"
+"        normal += uBones[int(i_skin1[i])] * norm4 * i_boneWeight1[i];\n"
+"    }\n"
+"    position.w = 1.0;\n"
+"    v_color = i_color;\n"
+"    v_texcoord = i_texcoord;\n"
+"    v_texcoord2 = (uTextureMatrix * uModelMatrix * position).xy;\n"
+"    vec3 worldNormal = normalize(uNormalMatrix * normal.xyz);\n"
+"    vec3 worldPos = (uModelMatrix * position).xyz;\n"
+"    v_lighting = vertex_lighting(worldNormal, worldPos);\n"
+#ifdef USE_SHADOWMAPS
+"    v_shadow = uLightMatrix * uModelMatrix * position;\n"
+#endif
+"    gl_Position = uViewProjectionMatrix * uModelMatrix * position;\n"
+"}\n";
+
+static LPCSTR model_fs =
+"#version 140\n"
+"in vec2 v_texcoord;\n"
+"in vec2 v_texcoord2;\n"
+#ifdef USE_SHADOWMAPS
+"in vec4 v_shadow;\n"
+#endif
+"in vec3 v_lighting;\n"
+"in vec4 v_color;\n"
+"out vec4 o_color;\n"
+"uniform sampler2D uTexture;\n"
+#if defined(USE_SHADOWMAPS) || defined(DEBUG_PATHFINDING)
+"uniform sampler2D uShadowmap;\n"
+#endif
+"uniform sampler2D uFogOfWar;\n"
+"uniform float uLayerAlpha;\n"
+"uniform vec4 uGeosetColor;\n"
+"uniform vec2 uUvTrans;\n"
+"uniform vec2 uUvRot;\n"
+"uniform vec2 uUvScale;\n"
+"uniform bool uUseDiscard;\n"
+"uniform float uAlphaCutoff;\n"
+"uniform bool uUnshaded;\n"
+"uniform bool uFogEnable;\n"
+"uniform vec3 uFogColor;\n"
+"uniform vec2 uFogParams;\n"
+"vec2 quat_transform(vec2 q, vec2 v) {\n"
+"    float c = q.y * q.y - q.x * q.x;\n"
+"    float s = 2.0 * q.x * q.y;\n"
+"    return vec2(v.x * c - v.y * s, v.x * s + v.y * c);\n"
+"}\n"
+"float get_fogofwar() {\n"
+"    return texture(uFogOfWar, v_texcoord2).r;\n"
+"}\n"
+"void main() {\n"
+"    vec2 uv = v_texcoord;\n"
+"    uv += uUvTrans;\n"
+"    uv = quat_transform(uUvRot, uv - 0.5) + 0.5;\n"
+"    uv = uUvScale * (uv - 0.5) + 0.5;\n"
+"    vec4 col = texture(uTexture, uv);\n"
+"    col *= uGeosetColor;\n"
+"    col *= uLayerAlpha;\n"
+"    col *= v_color;\n"
+"    if (!uUnshaded) {\n"
+"        col.rgb *= get_fogofwar() * v_lighting;\n"
+"        if (uFogEnable) {\n"
+"            float fogFactor = clamp((uFogParams.y - gl_FragCoord.z / gl_FragCoord.w) / (uFogParams.y - uFogParams.x), 0.0, 1.0);\n"
+"            col.rgb = mix(uFogColor, col.rgb, fogFactor);\n"
+"        }\n"
+"    }\n"
+"    o_color = col;\n"
+"    if (o_color.a < uAlphaCutoff && uUseDiscard) discard;\n"
+"}\n";
+
+static LPSHADER model_shader;
+
+/* Returns the shared model shader, compiling it on first call. All three model
+   formats (MDX/M2/M3) use this single shader; per-format data is normalised at
+   load time so the GPU path is identical. */
+LPSHADER R_ModelShader(void) {
+    if (!model_shader) {
+        model_shader = R_InitShader(model_vs, model_fs);
+        if (model_shader) {
+            R_Call(glUseProgram, model_shader->progid);
+            R_Call(glUniform1f, model_shader->uAlphaCutoff, 0.5f);
+        }
+    }
+    return model_shader ? model_shader : tr.shader[SHADER_DEFAULT];
+}
+
 LPSHADER R_InitShader(LPCSTR vs_default, LPCSTR fs_default){
     GLuint vs = R_Call(glCreateShader, GL_VERTEX_SHADER);
     GLuint fs = R_Call(glCreateShader, GL_FRAGMENT_SHADER);
@@ -219,9 +370,7 @@ LPSHADER R_InitShader(LPCSTR vs_default, LPCSTR fs_default){
     R_Call(glBindAttribLocation, program->progid, attrib_texcoord, "i_texcoord");
     R_Call(glBindAttribLocation, program->progid, attrib_normal, "i_normal");
     R_Call(glBindAttribLocation, program->progid, attrib_skin1, "i_skin1");
-    R_Call(glBindAttribLocation, program->progid, attrib_skin2, "i_skin2");
     R_Call(glBindAttribLocation, program->progid, attrib_boneWeight1, "i_boneWeight1");
-    R_Call(glBindAttribLocation, program->progid, attrib_boneWeight2, "i_boneWeight2");
     R_Call(glBindAttribLocation, program->progid, attrib_particleSize, "i_size");
     R_Call(glBindAttribLocation, program->progid, attrib_particleAxis, "i_axis");
 
@@ -242,16 +391,18 @@ LPSHADER R_InitShader(LPCSTR vs_default, LPCSTR fs_default){
     R_RegisterUniform(program, uFogOfWar);
     R_RegisterUniform(program, uBones);
     R_RegisterUniform(program, uUseDiscard);
+    R_RegisterUniform(program, uAlphaCutoff);
     R_RegisterUniform(program, uUnshaded);
     R_RegisterUniform(program, uLayerAlpha);
     R_RegisterUniform(program, uGeosetColor);
     R_RegisterUniform(program, uUvTrans);
     R_RegisterUniform(program, uUvRot);
     R_RegisterUniform(program, uUvScale);
-    R_RegisterUniform(program, uMdxLightCount);
-    program->uMdxLights = glGetUniformLocation(program->progid, "uMdxLights[0]");
-    R_RegisterUniform(program, uMdxFallbackLighting);
-    R_RegisterUniform(program, uMdxLightFill);
+    R_RegisterUniform(program, uLightDir);
+    R_RegisterUniform(program, uLightColor);
+    R_RegisterUniform(program, uLightAmbient);
+    R_RegisterUniform(program, uLightCount);
+    program->uLights = glGetUniformLocation(program->progid, "uLights[0]");
     R_RegisterUniform(program, uEyePosition);
     R_RegisterUniform(program, uActiveGlow);
     R_RegisterUniform(program, uFogEnable);
@@ -269,4 +420,8 @@ LPSHADER R_InitShader(LPCSTR vs_default, LPCSTR fs_default){
 
 void R_ReleaseShader(LPSHADER shader) {
     ri.MemFree(shader);
+}
+
+void R_ShutdownModelShader(void) {
+    SAFE_DELETE(model_shader, R_ReleaseShader);
 }
