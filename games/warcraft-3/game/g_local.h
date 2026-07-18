@@ -558,6 +558,7 @@ struct edict_s {
     LPEDICT patrol_a;        // non-NULL while patrolling: the two endpoints cycled between
     LPEDICT patrol_b;
     LPEDICT patrol_target;   // whichever of patrol_a/patrol_b is the current leg; survives combat detours
+    BOOL holding_position;  // never moves to engage; only fires on enemies already in attack range
     EDICTSTAT health;
     EDICTSTAT mana;
     MOVETYPE movetype;
@@ -947,6 +948,8 @@ void order_stop(LPEDICT);
 void order_attackmove(LPEDICT, LPEDICT);
 void order_patrol(LPEDICT, LPEDICT);
 void order_patrol_resume(LPEDICT);
+extern umove_t holdpos_move_stand;
+extern umove_t holdpos_move_stand_ready;
 BOOL G_ActorHasSkill(LPEDICT, LPCSTR);
 void harvest_start(LPEDICT, LPEDICT);
 void harvest_gold_start(LPEDICT, LPEDICT);
