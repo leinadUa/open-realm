@@ -146,7 +146,9 @@ void T_Damage(LPEDICT target, LPEDICT attacker, int damage) {
         unit_leavecombat(target);
         unit_leavecombat(attacker);
         target->die(target, attacker);
-        if (attacker->attackmove_waypoint) {
+        if (attacker->patrol_a) {
+            order_patrol_resume(attacker);
+        } else if (attacker->attackmove_waypoint) {
             order_attackmove(attacker, attacker->attackmove_waypoint);
         } else {
             attacker->stand(attacker);

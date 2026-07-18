@@ -5,6 +5,7 @@
 
 void order_stop(LPEDICT ent) {
     ent->attackmove_waypoint = NULL;
+    ent->patrol_a = NULL;
     unit_leavecombat(ent);
     ent->stand(ent);
 }

@@ -287,6 +287,7 @@ static umove_t move_move_walk = { "walk", ai_move_walk, NULL, &a_move };
 void order_move(LPEDICT self, LPEDICT target) {
     self->goalentity = target;
     self->attackmove_waypoint = NULL;
+    self->patrol_a = NULL;
     move_reset_progress(self);
     unit_setmove(self, &move_move_walk);
 }

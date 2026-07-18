@@ -555,6 +555,9 @@ struct edict_s {
     FLOAT move_group_speed;  // slowest member's speed for a group move (0 = no cap), keeps the group together
     FLOAT move_heading;      // avoidance-resolved heading chosen this tick by unit_changeangle; movement follows it
     LPEDICT attackmove_waypoint;  // non-NULL while attack-moving: resume walking toward it after a kill
+    LPEDICT patrol_a;        // non-NULL while patrolling: the two endpoints cycled between
+    LPEDICT patrol_b;
+    LPEDICT patrol_target;   // whichever of patrol_a/patrol_b is the current leg; survives combat detours
     EDICTSTAT health;
     EDICTSTAT mana;
     MOVETYPE movetype;
@@ -942,6 +945,8 @@ void order_attack(LPEDICT, LPEDICT);
 void order_move(LPEDICT, LPEDICT);
 void order_stop(LPEDICT);
 void order_attackmove(LPEDICT, LPEDICT);
+void order_patrol(LPEDICT, LPEDICT);
+void order_patrol_resume(LPEDICT);
 BOOL G_ActorHasSkill(LPEDICT, LPCSTR);
 void harvest_start(LPEDICT, LPEDICT);
 void harvest_gold_start(LPEDICT, LPEDICT);
