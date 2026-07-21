@@ -105,6 +105,15 @@ void UI_WriteSingleInfo(LPEDICT ent) {
     /* InfoPanelUnitDetail uses SetAllPoints and must fill the old bottom-center panel, not the whole scene. */
     UI_WriteFrame(&bottom_panel);
     UI_WriteFrameWithChildren(unit_panel.InfoPanelUnitDetail, &bottom_panel);
+
+    snprintf(buffer, sizeof(buffer), "%d / %d", (int)(ent->health.value + 0.5f), (int)(ent->health.max_value + 0.5f));
+    UI_WriteTextFrame(PORTRAIT_HP_X, PORTRAIT_HP_Y, PORTRAIT_HP_W, PORTRAIT_HP_H,
+                      buffer, MAKE(COLOR32, 60, 200, 60, 255), FONT_JUSTIFYCENTER);
+    if (ent->mana.max_value > 0.0f) {
+        snprintf(buffer, sizeof(buffer), "%d / %d", (int)(ent->mana.value + 0.5f), (int)(ent->mana.max_value + 0.5f));
+        UI_WriteTextFrame(PORTRAIT_MANA_X, PORTRAIT_MANA_Y, PORTRAIT_MANA_W, PORTRAIT_MANA_H,
+                          buffer, MAKE(COLOR32, 60, 160, 220, 255), FONT_JUSTIFYCENTER);
+    }
 }
 
 void UI_WriteMultiselect(LPEDICT *ents, DWORD count) {
@@ -115,8 +124,8 @@ void UI_WriteMultiselect(LPEDICT *ents, DWORD count) {
     uiFrame_t frame;
 
     memset(buffer, 0, size);
-    multi->hp_bar = gi.ImageIndex(Theme_String("SimpleHpBarConsole", "UI\\Widgets\\Console\\Human\\human-statbar-fill.blp"));
-    multi->mana_bar = gi.ImageIndex(Theme_String("SimpleManaBarConsole", "UI\\Widgets\\Console\\Human\\human-statbar-fill.blp"));
+    multi->hp_bar = gi.ImageIndex(Theme_String("SimpleHpBarConsole", "UI\\Feedback\\HpBarConsole\\human-healthbar-fill.blp"));
+    multi->mana_bar = gi.ImageIndex(Theme_String("SimpleManaBarConsole", "UI\\Feedback\\HpBarConsole\\human-healthbar-fill.blp"));
     multi->offset = MAKE(VECTOR2, 0.031f, 0.050f);
     multi->numcolumns = 6;
     multi->numitems = count;
